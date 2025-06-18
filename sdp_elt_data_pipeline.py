@@ -8,6 +8,8 @@ import re
 import git
 import logging
 import os
+import pandas as pd 
+
 
 def extract_non_patch_releases(github_token: str=None, github_owner: str="scikit-learn", 
                      github_repository: str="scikit-learn") -> list[dict]:
@@ -252,11 +254,27 @@ def tansform_raw_dataset(dataset_file_path: str=None) -> None:
     Returns:
         transformed_file_path (str): O caminho para o dataset transformado.  
     """
-    transformed_file_path = dataset_file_path.replace("raw", "trf")
-
     # Escreva seu código aqui. Use o pandas para fazer essa tarefa
     # Ao final, salve as alterações em um arquivo como o neme contido em transformed_file_path 
+    df = pd.read_csv(dataset_file_path, delimiter=';')
+    df_cleaned = df[~df['FILE'].str.contains('example', na=False)].copy()
+    df_cleaned = df_cleaned[~df_cleaned['FILE'].str.contains('/doc/', na=False)].copy()
+    numeric_cols = ['LOC', 'COM', 'BLK', 'NOF', 'NOC', 'APF', 'AMC', 'NER', 'NEH', 'CYC', 'MAD', 'BUG']
+    all_zeros_condition = (df_cleaned[numeric_cols] == 0).all(axis=1)
+    df_cleaned = df_cleaned[~all_zeros_condition].copy()
+    numeric_cols = ['LOC', 'COM', 'BLK', 'NOF', 'NOC', 'APF', 'AMC', 'NER', 'NEH', 'CYC', 'MAD', 'BUG']
 
+    for col in numeric_cols:
+        Q1 = df_cleaned[col].quantile(0.25)
+        Q3 = df_cleaned[col].quantile(0.75)
+        IQR = Q3 - Q1
+        lower_bound = Q1 - 1.5 * IQR
+        upper_bound = Q3 + 1.5 * IQR
+        df_cleaned = df_cleaned[(df_cleaned[col] >= lower_bound) & (df_cleaned[col] <= upper_bound)].copy()
+
+
+    transformed_file_path = dataset_file_path.replace("raw", "trf")
+    df_cleaned.to_csv(transformed_file_path)
     return transformed_file_path
 
 def start():
